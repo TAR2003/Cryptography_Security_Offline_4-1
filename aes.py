@@ -76,10 +76,10 @@ def key_schedule(key):
             W.append(words[i])
         elif i >= N and i % N == 0:
             tempWord =xor_lists( W[i - N], sub_word(leftRotateWord(W[i - 1])))
-            tempWord[0] = tempWord[0]  ^ rcon10 [i//N]
+            tempWord[0] = tempWord[0]  ^ rcon10 [(i//N)]
             W.append(tempWord)
         elif i >= N and N > 6 and i % N == 4:
-            tempWord = xor_lists(W[i - N] , sub_word[W[i - 1]])
+            tempWord = xor_lists(W[i - N] , sub_word(W[i - 1]))
             W.append(tempWord)
         else :
             tempWord = xor_lists(W[i - N] , W[i - 1])

@@ -71,7 +71,7 @@ rcon = [
 ]
 
 # Example usage:
-key = b"mysecretpassword"  # 16-byte key
+key = b"hello world 1234"  # 16-byte key
 round_keys = expand_key(key)
 print(round_keys)
 
