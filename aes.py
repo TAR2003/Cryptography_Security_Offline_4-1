@@ -1,4 +1,5 @@
 from BitVector import *
+import time
 
 Sbox = (
     0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76,
@@ -57,6 +58,9 @@ rcon10 = [0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40,0x80, 0x1B, 0x36]
 def leftRotateWord(word):
     return word[1:] + word[:1]
 
+def invLeftRotateWord(word):
+    return word[-1:] + word[:-1]
+
 def sub_word(word):
     return [Sbox[b] for b in word]
 
@@ -67,9 +71,9 @@ def key_schedule(key):
     newkey = []
     N = 4
     R = 11
-    print('keys:' , key)
+    # print('keys:' , key)
     words = [[ord(c) for c in key[i:i+4]] for i in range(0, len(key), 4)]
-    print(words)
+    # print(words)
     W = []
     for i in range (0, 4 * R):
         if i < N:
@@ -89,29 +93,357 @@ def key_schedule(key):
     for i in range(0, len(W)):
         for j in range(0, len(W[i])):
             W[i][j] = hex(W[i][j])
-    print(W)
+    # print(W)
     return W
  
+def padding_Process(user_plaintText_bytes):
+    l = len(user_plaintText_bytes)
+    padding_len = 16 - (l % 16)
+    for i in range (0,padding_len):
+        user_plaintText_bytes.append(hex(padding_len))
+    return user_plaintText_bytes
+
+def makeHex(user_text):
+    return [hex(ord(c)) for c in user_text]
+def makeBlock(user_plainText_Hex):
+    one_block = []
+    # print('user plainttext : ' , user_plainText_Hex)
+    for j in range (0, 8, 2):
+        one_block.append(user_plainText_Hex[j:j+2])
+    return one_block
+
+
+def subBytes(user_plainText_Hex):
+    transformed_block = []
+    
+    for row in user_plainText_Hex:
+        new_row = []  # Only one block in the outer list
+        for byte in row:    
+            temp = byte
+            t = Sbox[temp]
+            new_row.append((Sbox[temp]))
+        transformed_block.append(new_row)
+    return transformed_block
+
+def invSubBytes(state):
+    transformed_block = []
+    for row in state:
+        new_row = []
+        for byte in row:
+            new_row.append(InvSbox[byte])  # Use inverse S-box
+        transformed_block.append(new_row)
+    return transformed_block
+
+def mix_columns(state):
+    result = []
+    AES_modulus = BitVector(bitstring='100011011')
+    for i in range (0,4):
+        for j in range (0,4):
+            state[i][j] = hex(state[i][j])
+    for col in range(0,4):
+        column = [BitVector(hexstring=state[row][col][2:]) for row in range(4)]
+        t = []
+        for row in range(4):
+            new_val = BitVector(intVal=0, size=8)
+            
+            for k in range(4):
+                product = Mixer[row][k].gf_multiply_modular(column[k], AES_modulus, 8)
+                new_val ^= product
+            t.append(int(('0x' + new_val.get_bitvector_in_hex()), 16))
+        result.append(t)
+    # for i in range (0,4):
+    #     for j in range (0,4):
+    #         result[i][j] = hex(result[i][j])
+    return [[result[row][col] for row in range(4)] for col in range(4)]
+
+def invMixColumns(state):
+    result = []
+    AES_modulus = BitVector(bitstring='100011011')  # AES modulus (0x11B)
+    
+    # Convert state to BitVector objects
+    for col in range(4):
+        column = [BitVector(intVal=state[row][col], size=8) for row in range(4)]
+        t = []
+        for row in range(4):
+            new_val = BitVector(intVal=0, size=8)
+            for k in range(4):
+                # Use inverse MixColumns matrix
+                product = InvMixer[row][k].gf_multiply_modular(column[k], AES_modulus, 8)
+                new_val ^= product
+            t.append(int(new_val.get_bitvector_in_hex(), 16))
+        result.append(t)
+    
+    # Transpose to match original state format
+    return [[result[row][col] for row in range(4)] for col in range(4)]
+
+
+def makeDecimals(words):
+    for i in range(0, len(words)):
+            words[i] = int(words[i], 16)
+    return words
 
 
 
+def encrypt(user_key, user_plainText):
+    # print('Hex: ', end='')
+    key_hex = []
+    for c in user_key:
+        # print(hex(ord(c)), end=' ')
+        key_hex.append(hex(ord(c)))
+    print("user key:" , user_key)
+    print('user key in hex: ' , end='')
+    for i in range (0, len(key_hex)):    
+        print(key_hex[i], end=' ')
+    print('\n')
+    start_time = time.perf_counter()
+    key_hex = key_schedule(user_key)
+    end_time = time.perf_counter()
+    print('Time taken for key schedule encryption: ', end_time - start_time, 'ms')
+    # print('key hex in encryption: ',key_hex)
+
+    key_hex_blocks = []
+    for i in range (0, len(key_hex), 4):
+        one_block = (key_hex[i:i+4])
+        key_hex_blocks.append(one_block)
+    # print(type(key_hex_blocks[0][0][0]))
+    # print('len=', len(key_hex_blocks))
+    # print('key_hex_blocks:', key_hex_blocks)
+    # print('\n')
+    # key_schedule(user_key)
+    print('user plain text: ' , user_plainText)
+    user_plainText_Hex = makeHex(user_plainText)
+
+    print('user plain text in hex: ' , end='')
+    for i in range (0, len(user_plainText_Hex),):  
+        print(user_plainText_Hex[i], end=' ')
+    print('\n')
+
+
+    user_plainText_Hex = padding_Process(user_plainText_Hex)
+    # print(user_plainText_Hex)
+    newstring = ''
+    for i in range (0, len(user_plainText_Hex)):
+        newstring += (chr(int(user_plainText_Hex[i],16))) # chr(user_plainText_Hex[i])
+    print('user plain text after padding: ' , newstring)
+    print('user plain text after padding in hex: ' , end='')
+    for i in range (0, len(user_plainText_Hex)):
+        print(user_plainText_Hex[i], end=' ')
+    print('\n')
+    # print(user_plainText_Hex)
+    R = 10
+    blocks = []
+    # print('klength of userplaintext afer padding: ', len(user_plainText_Hex))
+    for i in range (0, len(user_plainText_Hex), 16):
+        
+        one_block = []
+        for j in range (0, 16, 4):
+            one_block.append(user_plainText_Hex[i+j:i+j+4])
+        blocks.append(one_block)
+
+    # print('blocks:', blocks, end='\n\n')
+    key_for_round = key_hex_blocks[0]
+    for i in range (0, len(blocks)):
+        for j in range(0, 4):   
+            blocks[i][j] = makeDecimals(blocks[i][j])
+    for i in range (0, len(key_hex_blocks)):
+        for j in range(0, 4):
+            key_hex_blocks[i][j] = makeDecimals(key_hex_blocks[i][j])
+    # print('blocks:', blocks, end='\n\n')
+    # print('key hex blocks:', key_hex_blocks, end='\n\n')
+    for blockno in range (0, len(blocks)):
+            block = blocks[blockno]
+            cipherText = block
+            for i in range (0,4):
+                # cipherText[i] = makeDecimals(cipherText[i])
+                cipherText[i] = xor_lists(cipherText[i], key_for_round[i])
+            blocks[blockno] = cipherText
+    # print(cipherText)
+
+    ciphered_blocks = []
+    for _i in range (0, 10):
+        key_for_round = key_hex_blocks[_i + 1]
+        for blockno in range (0, len(blocks)):
+            block = blocks[blockno]
+            cipherText = block
+            cipherText = subBytes(cipherText)
+            # print('After subbytes:' , cipherText)
+            for j in range (0,4):
+                cipherText[j] = leftRotateWord(cipherText[j])
+            # print('After leftRotateWord:' , cipherText)
+            if (_i < 9):
+                cipherText = mix_columns(cipherText)
+                # print('After mix_columns:' , cipherText)
+            for i in range (0,4):
+                # cipherText[i] = makeDecimals(cipherText[i])
+                # key_for_round[i] = makeDecimals(key_for_round[i])
+                cipherText[i] = xor_lists(cipherText[i], key_for_round[i])
+            blocks[blockno] = cipherText
+            # print('encryption turn no: ', _i + 1, ' :: cipher: ' , cipherText)
+    ans = ''
+    for i in range (0, len(blocks)):
+        for j in range(0, 4):
+            for k in range(0, 4):
+                ans += chr(blocks[i][j][k])
+    return ans 
+# print(blocks)
+
+
+def decrypt(user_key, encrypted_text):
+    # print('Hex: ', end='')
+    # print('blokcs in decryption:', blocks)
+    key_hex = []
+    for c in user_key:
+        # print(hex(ord(c)), end=' ')
+        key_hex.append(hex(ord(c)))
+    start_time = time.perf_counter()
+    key_hex = key_schedule(user_key)
+    end_time = time.perf_counter()
+    print('key_schedule time for decryption: ', end_time - start_time)
+    # print(key_hex)
+
+    encrypted_text = makeHex(encrypted_text)
+    for i in range (0, len(encrypted_text)):    
+        print(encrypted_text[i], end=' ')
+    print()
+    # print(user_plainText_Hex)
+    R = 10
+    blocks = []
+    for i in range (0, len(encrypted_text), 16):
+        
+        one_block = []
+        for j in range (0, 16, 4):
+            one_block.append(encrypted_text[i+j:i+j+4])
+        blocks.append(one_block)
+    for i in range (0, len(blocks)):
+        for j in range(0, 4):   
+            blocks[i][j] = makeDecimals(blocks[i][j])
+
+    key_hex_blocks = []
+    for i in range (0, len(key_hex), 4):
+        one_block = (key_hex[i:i+4])
+        key_hex_blocks.append(one_block)
+    # print(type(key_hex_blocks[0][0][0]))
+    for i in range (0, len(key_hex_blocks)):
+        for j in range(0, 4):
+            key_hex_blocks[i][j] = makeDecimals(key_hex_blocks[i][j])
+    # print('key_hex_blocks in decryption:', key_hex_blocks)
+    # Reverse the round keys (for decryption)
+    reversed_round_keys = key_hex_blocks[::-1]  # Start from last round key
+
+    # Start with the last round (no inverse mix_columns)
+    for blockno in range(len(blocks)):
+        block = blocks[blockno]
+        decrypted_block = block
+
+        # Round 10 (first in decryption)
+        key_for_round = reversed_round_keys[0]  # Last encryption round key
+        for i in range(4):
+            decrypted_block[i] = xor_lists(decrypted_block[i], key_for_round[i])
+        # print('Round 10: ', decrypted_block)
+        # Inverse ShiftRows (right rotate)
+        for j in range(4):
+            decrypted_block[j] = invLeftRotateWord(decrypted_block[j])  # New helper function
+        # print('After Inverse ShiftRows: ', decrypted_block)
+        # Inverse SubBytes
+        decrypted_block = invSubBytes(decrypted_block)
+        # print('After Inverse SubBytes: ', decrypted_block)
+        blocks[blockno] = decrypted_block
+
+    # Rounds 9 to 1 (with inverse mix_columns)
+    for _i in range(1, 10):
+        key_for_round = reversed_round_keys[_i]
+        for blockno in range(len(blocks)):
+            block = blocks[blockno]
+            decrypted_block = block
+
+            # AddRoundKey
+            for i in range(4):
+                decrypted_block[i] = xor_lists(decrypted_block[i], key_for_round[i])
+            # print('Round ', _i, ': ', decrypted_block)
+            # Inverse MixColumns
+            decrypted_block = invMixColumns(decrypted_block)
+            # print('After Inverse MixColumns: ', decrypted_block)
+            # Inverse ShiftRows
+            for j in range(4):
+                decrypted_block[j] = invLeftRotateWord(decrypted_block[j])
+            # print('After Inverse ShiftRows: ', decrypted_block)
+            # Inverse SubBytes
+            decrypted_block = invSubBytes(decrypted_block)
+            # print('After Inverse SubBytes: ', decrypted_block)
+            blocks[blockno] = decrypted_block
+
+    # Final round (Round 0)
+    key_for_round = reversed_round_keys[10]  # Original key
+    for blockno in range(len(blocks)):
+        block = blocks[blockno]
+        decrypted_block = block
+        for i in range(4):
+            decrypted_block[i] = xor_lists(decrypted_block[i], key_for_round[i])
+        blocks[blockno] = decrypted_block
+    alloutput = []
+    for i in range (0, len(blocks)):
+        for j in range (0, 4):
+            for k in range (0, 4):
+                alloutput.append(blocks[i][j][k])
+    cut = alloutput[len(alloutput)-1]
+    print('Before unpadding')
+    print('in hex: ' , alloutput)
+    ans = ''
+    for i in range (0, len(alloutput)):
+        ans += chr(alloutput[i])
+    print('in ASCII: ' , ans)
+    while cut > 0:
+        cut -= 1
+        alloutput.pop()
+    
+    ans = ''
+    for i in range (0, len(alloutput)):
+        ans += chr(alloutput[i])
+    print('After unpadding')
+    print('in hex: ' , alloutput)
+    print('in ASCII: ' , ans)
+    return ans 
 
 print('Key:')
 print("In ASCII: ", end='')
 user_key = input()
-print('Hex: ', end='')
-key_hex = []
-for c in user_key:
-    print(hex(ord(c)), end=' ')
-    key_hex.append(hex(ord(c)))
-print('\n')
-key_schedule(user_key)
+for i in range (0,16):
+    user_key += '0'
+more = len(user_key) - 16
+while more > 0:
+    more-=1
+    user_key = user_key[0:len(user_key)-1]
+
 
 print('Plain Text: ')
 print("In ASCII: ", end='')
 user_plainText = input()
-for c in user_plainText:
-    print(hex(ord(c)), end=' ')
-print()
+start_time = time.perf_counter()
+ans = encrypt(user_key, user_plainText)
+end_time = time.perf_counter()
+print('Time taken for encryption: ', end_time - start_time, 'ms')
+print('The encrypted plain text is: ', ans)  
+print('in hex', end=' ')
+for i in range (0, len(ans)):
+    print(hex(ord(ans[i])), end=' ')
+print('\n\n')
+# print('Now blocks are re appeared : ' , blocks)
+# print('Now the decryption process is going to start ----')
+start_time = time.perf_counter()
+ans = decrypt(user_key, ans)
+end_time = time.perf_counter()
+print('Time taken for decryption: ', end_time - start_time, 'ms')
+print('The decrypted plain text is: ', ans)  
+     
+# for block in blocks:
+#     cipherText = block
+#     for i in range (0, R-1):
+#         cipherText = subBytes(cipherText)
+#         for j in range (0,4):
+#             leftRotateWord
+#     print(cipherText)
+
+
+
 
 
