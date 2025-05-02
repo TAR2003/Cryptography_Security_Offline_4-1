@@ -81,9 +81,7 @@ print("Last round key:", [f"{x:02x}" for x in sum(round_keys[-1], [])])
 
 a = [1,2,3,4,5,6]
 
-for i in a:
-    # print(i)
-    i = i + 1
-print(a)
-    
+b = a
+a[1] =39049394
+print(b)
 

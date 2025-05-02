@@ -1,4 +1,5 @@
 from BitVector import *
+import random
 import time
 
 Sbox = (
@@ -182,7 +183,14 @@ def makeDecimals(words):
             words[i] = int(words[i], 16)
     return words
 
-
+def genRandomInitialVector():
+    v = []
+    for i in range (0,4):
+        temp = []
+        for j in range (0,4):
+            temp.append(random.randint(0,255))
+        v.append(temp)
+    return v
 
 def encrypt(user_key, user_plainText):
     # print('Hex: ', end='')
@@ -240,15 +248,28 @@ def encrypt(user_key, user_plainText):
             one_block.append(user_plainText_Hex[i+j:i+j+4])
         blocks.append(one_block)
 
-    # print('blocks:', blocks, end='\n\n')
-    key_for_round = key_hex_blocks[0]
     for i in range (0, len(blocks)):
         for j in range(0, 4):   
             blocks[i][j] = makeDecimals(blocks[i][j])
+    # print('blocks before iv :', blocks, end='\n\n')
+    iv = genRandomInitialVector()
+    tempiv = iv.copy()
+    blocks.insert(0, iv)
+    for i in range (1, len(blocks)):
+        for j in range(0, 4):
+            # print('blokcs i j L:' , blocks[i][j])
+            blocks[i][j] = xor_lists(blocks[i][j], blocks[i-1][j])
+     
+    # print('blocks after iv: ',  blocks)
+    # print('iv: ', tempiv)
+    
+
+    key_for_round = key_hex_blocks[0]
+    
     for i in range (0, len(key_hex_blocks)):
         for j in range(0, 4):
             key_hex_blocks[i][j] = makeDecimals(key_hex_blocks[i][j])
-    # print('blocks:', blocks, end='\n\n')
+    print('blocks:', blocks, end='\n\n')
     # print('key hex blocks:', key_hex_blocks, end='\n\n')
     for blockno in range (0, len(blocks)):
             block = blocks[blockno]
@@ -279,6 +300,7 @@ def encrypt(user_key, user_plainText):
                 cipherText[i] = xor_lists(cipherText[i], key_for_round[i])
             blocks[blockno] = cipherText
             # print('encryption turn no: ', _i + 1, ' :: cipher: ' , cipherText)
+        
     ans = ''
     for i in range (0, len(blocks)):
         for j in range(0, 4):
@@ -380,7 +402,19 @@ def decrypt(user_key, encrypted_text):
         for i in range(4):
             decrypted_block[i] = xor_lists(decrypted_block[i], key_for_round[i])
         blocks[blockno] = decrypted_block
+    
+    
     alloutput = []
+    # print('finally cdecryprd blokcs : ' , blocks)
+   
+    i = len(blocks) - 1
+    while(i > 0):
+        for j in range(0,4):
+            blocks[i][j] = xor_lists(blocks[i][j], blocks[i-1][j])
+        i -= 1
+            
+    # print('all bnlokcs in decryption: ' , blocks)
+    blocks = blocks[1: ]
     for i in range (0, len(blocks)):
         for j in range (0, 4):
             for k in range (0, 4):
