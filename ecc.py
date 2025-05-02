@@ -10,9 +10,9 @@ def inverse_mod(k, p):
 
 def point_add(P1, P2, a, P):
     if P1 is None:
-        return P2
+        return P2 # if P1 point is None, we return P2
     if P2 is None:
-        return P1
+        return P1 # if P2 point is None, we return P1
     x1, y1 = P1
     x2, y2 = P2
 
@@ -35,9 +35,9 @@ def scalar_mult(k, point, a, P):
 
     while k:
         if k & 1:
-            result = point_add(result, addend, a, P)
-        addend = point_add(addend, addend, a, P)
-        k >>= 1
+            result = point_add(result, addend, a, P) # if k is odd, add the addend
+        addend = point_add(addend, addend, a, P) # double the addend
+        k >>= 1 # divide k by 2
     return result
 
 
